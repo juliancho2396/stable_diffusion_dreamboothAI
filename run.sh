@@ -1,6 +1,23 @@
-# Definir la ruta del archivo
-sudo apt install python3
-sudo chmod 777 ./*
+if ! test -d "venv"; then
+    echo "Creando ambiente virtual"
+    python3 -m venv venv
+    wait
+    source ./venv/bin/activate
+    
+else
+    # Si la carpeta no existe, imprimir otro mensaje
+    source ./venv/bin/activate
+    wait
+fi
+
+
+if ! dpkg -s python3 &> /dev/null; then
+  sudo apt install python3
+fi
+
+if ! dpkg -s python3-tk &> /dev/null; then
+  sudo apt install python3-tk
+fi
 
 # Comprobar si los archivos existen
 if [ ! -f "./train_dreambooth.py" ]; then
@@ -11,15 +28,6 @@ fi
 if [ ! -f "convert_diffusers_to_original_stable_diffusion.py" ]; then
     # Si el archivo no existe, descargarlo
     wget -q https://github.com/ShivamShrirao/diffusers/raw/main/scripts/convert_diffusers_to_original_stable_diffusion.py
-fi
-
-if ! test -d "venv"; then
-    echo "Creando ambiente virtual"
-    python3 -m venv venv
-    source ./venv/bin/activate
-else
-    # Si la carpeta no existe, imprimir otro mensaje
-    source ./venv/bin/activate
 fi
 
 if ! pip freeze | grep -q "torchvision"; then
@@ -34,6 +42,11 @@ if ! pip freeze | grep -q "triton"; then
     pip install -q -U --pre triton
 fi
 
+if ! pip freeze | grep -q "tkinter"; then
+    
+    pip3 install tk
+fi
+
 if ! pip freeze | grep -q "accelerate"; then
     pip install -q accelerate==0.12.0 transformers ftfy bitsandbytes gradio natsort
 fi
@@ -41,6 +54,11 @@ fi
 
 if ! test -d "~/.huggingface"; then
     mkdir -p ~/.huggingface
+fi
+
+if ! test -d "stable_diffusion_weights"; then
+    mkdir -p stable_diffusion_weights
+
 fi
 
 if cat ~/.huggingface/token | grep -q "."; then
@@ -66,16 +84,17 @@ OUTPUT_DIR="stable_diffusion_weights/$nombremodelo" #@param {type:"string"}
 
 
 if ! test -d "$OUTPUT_DIR"; then
-    python3 model_output_settings.py "$OUTPUT_DIR"
+    mkdir "$OUTPUT_DIR"
+    python3 model_output_settings.py "$nombremodelo"
 else
     echo "YA EXISTE UNA FIGURA CON ESTE NOMBRE"
 fi
-
+echo "$OUTPUT_DIR"
 
 accelerate launch train_dreambooth.py \
-  --pretrained_model_name_or_path="$nombremodelo" \
+  --pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5" \
   --pretrained_vae_name_or_path="stabilityai/sd-vae-ft-mse" \
-  --output_dir="$OUTPUT_DIR" \
+  --output_dir="./$OUTPUT_DIR" \
   --revision="fp16" \
   --with_prior_preservation --prior_loss_weight=1.0 \
   --seed=1337 \
@@ -92,8 +111,8 @@ accelerate launch train_dreambooth.py \
   --sample_batch_size=4 \
   --max_train_steps=1500 \
   --save_interval=10000 \
-  --save_sample_prompt="photo of julian person" \
-  --concepts_list="concepts_list.json"
+  --save_sample_prompt="photo of $nombremodelo person" \
+  --concepts_list="./concepts_list.json"
 
 # Reduce the `--save_interval` to lower than `--max_train_steps` to save weights from intermediate steps.
 # `--save_sample_prompt` can be same as `--instance_prompt` to generate intermediate samples (saved along with weights in samples directory).
